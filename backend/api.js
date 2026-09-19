@@ -48,7 +48,10 @@ app.post('/api/login', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-app.get('/api/filters', requireAuth, asyncHandler(async (req, res) => {
+// Benni (readonly) bekommt nur die normalisierte Grafik (siehe /api/snapshots unten) -
+// Positionsliste, Filter, Detailseite und CSV-Export enthalten die echten Zahlen und sind
+// daher Peter (admin) vorbehalten. Diese Einschraenkung gilt auf API-Ebene, nicht nur im UI.
+app.get('/api/filters', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const [depots] = await pool.query(
     'SELECT DISTINCT depot_name FROM positions WHERE deleted_at IS NULL ORDER BY depot_name',
   );
@@ -61,7 +64,7 @@ app.get('/api/filters', requireAuth, asyncHandler(async (req, res) => {
   });
 }));
 
-app.get('/api/positions', requireAuth, asyncHandler(async (req, res) => {
+app.get('/api/positions', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const { depot, assetklasse } = req.query;
   const conditions = ['p.deleted_at IS NULL'];
   const params = [];
@@ -96,7 +99,7 @@ app.get('/api/positions', requireAuth, asyncHandler(async (req, res) => {
   res.json(merged);
 }));
 
-app.get('/api/positions/:id', requireAuth, asyncHandler(async (req, res) => {
+app.get('/api/positions/:id', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const [[position]] = await pool.query(
     `SELECT p.*, s.current_price_per_unit, s.current_total_value,
             s.gain_loss_absolute, s.gain_loss_percent, s.snapshot_date
@@ -115,7 +118,7 @@ app.get('/api/positions/:id', requireAuth, asyncHandler(async (req, res) => {
 
 // On-Demand-Kennzahlen + News fuer die Detailseite - wird bewusst NICHT zwischengespeichert,
 // jeder Seitenaufruf fragt frisch bei Yahoo an (siehe Anforderung: "on demand ... schauen").
-app.get('/api/positions/:id/insights', requireAuth, asyncHandler(async (req, res) => {
+app.get('/api/positions/:id/insights', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const [[position]] = await pool.query(
     'SELECT id, isin, wertpapier_name, yahoo_symbol FROM positions WHERE id = ? AND deleted_at IS NULL',
     [req.params.id],
@@ -200,8 +203,12 @@ app.delete('/api/positions/:id', requireAuth, requireFullAccess, asyncHandler(as
 
 app.get('/api/snapshots/:timeframe', requireAuth, asyncHandler(async (req, res) => {
   const { timeframe } = req.params;
-  const { depot, assetklasse } = req.query;
   const days = TIMEFRAME_DAYS[timeframe];
+  const isAdmin = req.user.role === 'admin';
+
+  // Benni (readonly) bekommt weder Depot-/Assetklassen-Filter (dafuer gibt es in ihrer
+  // Ansicht keine UI) noch echte Werte - siehe Normalisierung unten. Filter also nur fuer Peter.
+  const { depot, assetklasse } = isAdmin ? req.query : {};
 
   const conditions = ['p.deleted_at IS NULL'];
   const params = [];
@@ -227,7 +234,18 @@ app.get('/api/snapshots/:timeframe', requireAuth, asyncHandler(async (req, res) 
      ORDER BY s.snapshot_date`,
     params,
   );
-  res.json(rows);
+
+  if (isAdmin) return res.json(rows);
+
+  // Datenschutz: Benni darf die echten Euro-Betraege auch ueber die API nie sehen - nicht
+  // nur im UI ausgeblendet. Statt echter Werte liefern wir einen auf 100 indexierten Verlauf,
+  // der nur die Entwicklung zeigt, nie die absolute Portfoliogroesse.
+  const first = Number(rows[0]?.portfolio_value);
+  const normalized = rows.map((r) => ({
+    snapshot_date: r.snapshot_date,
+    index_value: first ? (Number(r.portfolio_value) / first) * 100 : 100,
+  }));
+  res.json(normalized);
 }));
 
 app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
@@ -330,7 +348,7 @@ function csvEscape(value) {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-app.get('/api/export/csv', requireAuth, asyncHandler(async (req, res) => {
+app.get('/api/export/csv', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT p.depot_name, p.wertpapier_name, p.isin, p.assetklasse, p.ausschuettungsart,
             p.menge, p.kaufdatum, p.kaufpreis_per_einheit, p.broker,

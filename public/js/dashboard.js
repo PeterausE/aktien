@@ -134,12 +134,14 @@ function currentFilterParams() {
 }
 
 async function loadChart() {
+  const isAdmin = getAuth()?.role === 'admin';
   const snapshots = await apiFetch(`snapshots/${activeTimeframe}?${currentFilterParams()}`);
-  renderPortfolioChart(snapshots);
+  renderPortfolioChart(snapshots, { showValues: isAdmin });
 }
 
 async function refreshDashboard() {
-  await Promise.all([loadPositions(), loadChart()]);
+  const isAdmin = getAuth()?.role === 'admin';
+  await Promise.all(isAdmin ? [loadPositions(), loadChart()] : [loadChart()]);
 }
 
 function initTimeframeButtons() {
@@ -222,29 +224,69 @@ async function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
+function initDetailsLogin() {
+  const overlay = document.getElementById('details-login-overlay');
+  const form = document.getElementById('details-login-form');
+  const errorEl = document.getElementById('details-login-error');
+
+  document.getElementById('details-btn').addEventListener('click', () => {
+    errorEl.hidden = true;
+    form.reset();
+    overlay.hidden = false;
+    document.getElementById('details-password').focus();
+  });
+
+  document.getElementById('details-login-cancel').addEventListener('click', () => {
+    overlay.hidden = true;
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    errorEl.hidden = true;
+    try {
+      await performLogin('peter', document.getElementById('details-password').value);
+      window.location.reload();
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.hidden = false;
+    }
+  });
+}
+
 (async function init() {
   const auth = getAuth();
   if (!auth?.token) {
     window.location.href = 'index.html';
     return;
   }
-  document.getElementById('current-user').textContent = `${auth.username} (${auth.role === 'admin' ? 'Vollzugriff' : 'Nur Ansicht'})`;
-  if (auth.role === 'admin') {
+  const isAdmin = auth.role === 'admin';
+  document.getElementById('current-user').textContent = `${auth.username} (${isAdmin ? 'Vollzugriff' : 'Nur Ansicht'})`;
+  initDetailsLogin();
+
+  if (isAdmin) {
+    // Tabelle/Filter/Export sind im HTML standardmaessig versteckt (sicherer Default fuer
+    // Benni) - fuer Peter hier aktiv sichtbar machen.
     document.getElementById('import-toggle-btn').hidden = false;
     document.getElementById('refresh-prices-btn').hidden = false;
+    document.getElementById('depot-assetklasse-filters').hidden = false;
+    document.querySelector('.positions-section').hidden = false;
+    document.getElementById('export-csv-btn').hidden = false;
+    document.getElementById('refresh-prices-btn').addEventListener('click', refreshPrices);
+    document.getElementById('filter-depot').addEventListener('change', refreshDashboard);
+    document.getElementById('filter-assetklasse').addEventListener('change', refreshDashboard);
+    document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
+    document.querySelector('#positions-table tbody').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-id]');
+      if (row) window.location.href = `position.html?id=${row.dataset.id}`;
+    });
+    initSortableHeaders();
+    await loadFilters();
+  } else {
+    // Datenschutz: Benni bekommt weder Filter noch Tabelle noch Export - nicht nur
+    // versteckt, die zugehoerigen API-Endpunkte lehnen ihre Rolle serverseitig ab.
+    document.getElementById('details-btn').hidden = false;
   }
 
-  document.getElementById('refresh-prices-btn').addEventListener('click', refreshPrices);
-  document.getElementById('filter-depot').addEventListener('change', refreshDashboard);
-  document.getElementById('filter-assetklasse').addEventListener('change', refreshDashboard);
-  document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
-  document.querySelector('#positions-table tbody').addEventListener('click', (event) => {
-    const row = event.target.closest('tr[data-id]');
-    if (row) window.location.href = `position.html?id=${row.dataset.id}`;
-  });
   initTimeframeButtons();
-  initSortableHeaders();
-
-  await loadFilters();
   await refreshDashboard();
 })();

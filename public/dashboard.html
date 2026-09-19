@@ -13,11 +13,25 @@
       <span id="current-user"></span>
       <span id="refresh-status" class="refresh-status"></span>
       <button id="refresh-prices-btn" class="toolbar-btn" hidden>Alle aktualisieren</button>
-      <button id="export-csv-btn" class="toolbar-btn">Export CSV</button>
+      <button id="export-csv-btn" class="toolbar-btn" hidden>Export CSV</button>
       <button id="import-toggle-btn" class="toolbar-btn" hidden>Import</button>
+      <button id="details-btn" class="toolbar-btn" hidden>Details</button>
       <button id="logout-btn">Abmelden</button>
     </div>
   </header>
+
+  <div id="details-login-overlay" class="modal-overlay" hidden>
+    <form id="details-login-form" class="modal-card">
+      <h2>Details freischalten</h2>
+      <label for="details-password">Passwort</label>
+      <input type="password" id="details-password" autocomplete="current-password" required />
+      <p id="details-login-error" class="error" hidden></p>
+      <div class="modal-actions">
+        <button type="button" id="details-login-cancel" class="toolbar-btn">Abbrechen</button>
+        <button type="submit">Freischalten</button>
+      </div>
+    </form>
+  </div>
 
   <main class="dashboard">
     <section id="import-section" class="import-section" hidden>
@@ -86,18 +100,20 @@
     </section>
 
     <section class="filters">
-      <label>
-        Depot
-        <select id="filter-depot">
-          <option value="">Alle</option>
-        </select>
-      </label>
-      <label>
-        Assetklasse
-        <select id="filter-assetklasse">
-          <option value="">Alle</option>
-        </select>
-      </label>
+      <div id="depot-assetklasse-filters" class="depot-assetklasse-filters" hidden>
+        <label>
+          Depot
+          <select id="filter-depot">
+            <option value="">Alle</option>
+          </select>
+        </label>
+        <label>
+          Assetklasse
+          <select id="filter-assetklasse">
+            <option value="">Alle</option>
+          </select>
+        </label>
+      </div>
       <div class="timeframe-buttons" id="timeframe-buttons">
         <button data-timeframe="1w">1W</button>
         <button data-timeframe="1m">1M</button>
@@ -111,7 +127,7 @@
       <canvas id="portfolio-chart"></canvas>
     </section>
 
-    <section class="positions-section">
+    <section class="positions-section" hidden>
       <table id="positions-table">
         <thead>
           <tr>

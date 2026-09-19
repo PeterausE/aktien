@@ -34,24 +34,31 @@ async function apiFetch(path, options = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+// Gemeinsam genutzt von der Startseite (immer username="benni", siehe unten) und dem
+// "Details"-Login-Modal im Dashboard (immer username="peter") - der direkte Peter-Login
+// ist auf der Startseite bewusst nicht mehr erreichbar, siehe Projektnotizen.
+async function performLogin(username, password) {
+  const res = await fetch('api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) throw new Error('Passwort falsch');
+  const data = await res.json();
+  setAuth({ token: data.token, role: data.role, username });
+  return data;
+}
+
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
   loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const errorEl = document.getElementById('login-error');
     errorEl.hidden = true;
 
     try {
-      const res = await fetch('api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) throw new Error('Benutzername oder Passwort falsch');
-      const data = await res.json();
-      setAuth({ token: data.token, role: data.role, username });
+      await performLogin('benni', password);
       window.location.href = 'dashboard.html';
     } catch (err) {
       errorEl.textContent = err.message;
