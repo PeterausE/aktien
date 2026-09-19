@@ -30,18 +30,14 @@ async function loadFilters() {
 }
 
 async function loadPositions() {
-  const depot = document.getElementById('filter-depot').value;
-  const assetklasse = document.getElementById('filter-assetklasse').value;
-  const params = new URLSearchParams();
-  if (depot) params.set('depot', depot);
-  if (assetklasse) params.set('assetklasse', assetklasse);
-
-  const positions = await apiFetch(`positions?${params}`);
+  const positions = await apiFetch(`positions?${currentFilterParams()}`);
   const tbody = document.querySelector('#positions-table tbody');
   tbody.innerHTML = '';
 
   for (const p of positions) {
     const tr = document.createElement('tr');
+    tr.dataset.id = p.id;
+    tr.classList.add('clickable-row');
     const gainLossPercent = p.gain_loss_percent != null ? Number(p.gain_loss_percent) : null;
     const menge = Number(p.menge);
     const kauf = fmtCurrency(p.kaufpreis_per_einheit);
@@ -74,8 +70,17 @@ async function loadPositions() {
   }
 }
 
+function currentFilterParams() {
+  const depot = document.getElementById('filter-depot').value;
+  const assetklasse = document.getElementById('filter-assetklasse').value;
+  const params = new URLSearchParams();
+  if (depot) params.set('depot', depot);
+  if (assetklasse) params.set('assetklasse', assetklasse);
+  return params;
+}
+
 async function loadChart() {
-  const snapshots = await apiFetch(`snapshots/${activeTimeframe}`);
+  const snapshots = await apiFetch(`snapshots/${activeTimeframe}?${currentFilterParams()}`);
   renderPortfolioChart(snapshots);
 }
 
@@ -150,6 +155,19 @@ async function refreshPrices() {
   }
 }
 
+async function exportCsv() {
+  const auth = getAuth();
+  const res = await fetch('api/export/csv', { headers: { Authorization: `Bearer ${auth.token}` } });
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `aktienaufstellung-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 (async function init() {
   const auth = getAuth();
   if (!auth?.token) {
@@ -163,8 +181,13 @@ async function refreshPrices() {
   }
 
   document.getElementById('refresh-prices-btn').addEventListener('click', refreshPrices);
-  document.getElementById('filter-depot').addEventListener('change', loadPositions);
-  document.getElementById('filter-assetklasse').addEventListener('change', loadPositions);
+  document.getElementById('filter-depot').addEventListener('change', refreshDashboard);
+  document.getElementById('filter-assetklasse').addEventListener('change', refreshDashboard);
+  document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
+  document.querySelector('#positions-table tbody').addEventListener('click', (event) => {
+    const row = event.target.closest('tr[data-id]');
+    if (row) window.location.href = `position.html?id=${row.dataset.id}`;
+  });
   initTimeframeButtons();
 
   await loadFilters();

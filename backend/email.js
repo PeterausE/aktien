@@ -76,7 +76,11 @@ function fmtPercent(value) {
   return value == null ? '–' : `${value >= 0 ? '+' : ''}${value.toFixed(2)} %`;
 }
 
-function buildBriefingHtml(summary) {
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function buildBriefingHtml(summary, newsHighlights = []) {
   const changeRows = LOOKBACKS.map(({ key, label }) => `
     <tr><td style="padding:4px 12px 4px 0;color:#52606d;">${label}</td>
         <td style="padding:4px 0;font-weight:600;">${fmtPercent(summary.changes[key])}</td></tr>
@@ -87,6 +91,18 @@ function buildBriefingHtml(summary) {
         <td style="padding:4px 0;text-align:right;">${fmtEur(d.total)}</td></tr>
   `).join('');
 
+  const newsSection = newsHighlights.length === 0 ? '' : `
+    <h3 style="margin:24px 0 8px;">Aktuelle Meldungen</h3>
+    <ul style="padding-left:18px;margin:0;">
+      ${newsHighlights.map((n) => `
+        <li style="margin-bottom:8px;color:#1f2933;">
+          <strong>${escapeHtml(n.wertpapier_name)}</strong><br>
+          <span style="color:#52606d;font-size:0.9rem;">${escapeHtml(n.summary)}</span>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+
   return `
     <div style="font-family:system-ui,sans-serif;max-width:480px;">
       <h2 style="margin-bottom:0;">Aktienaufstellung – Tagesbriefing</h2>
@@ -95,18 +111,19 @@ function buildBriefingHtml(summary) {
       <table style="border-collapse:collapse;margin-bottom:20px;">${changeRows}</table>
       <h3 style="margin-bottom:8px;">Nach Depot</h3>
       <table style="border-collapse:collapse;width:100%;">${depotRows}</table>
+      ${newsSection}
     </div>
   `;
 }
 
-async function sendDailyBriefing(pool) {
+async function sendDailyBriefing(pool, newsHighlights = []) {
   const summary = await getPortfolioSummary(pool);
   const transport = getTransport();
   await transport.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: RECIPIENT,
     subject: `Aktienaufstellung – ${fmtEur(summary.total)} (${summary.snapshotDate ?? 'heute'})`,
-    html: buildBriefingHtml(summary),
+    html: buildBriefingHtml(summary, newsHighlights),
   });
   return summary;
 }

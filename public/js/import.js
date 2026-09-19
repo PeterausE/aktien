@@ -168,3 +168,83 @@ if (importParseBtn) {
     renderImportPreview(parseImportRows(raw));
   });
 }
+
+const importTabBulk = document.getElementById('import-tab-bulk');
+const importTabSingle = document.getElementById('import-tab-single');
+if (importTabBulk && importTabSingle) {
+  importTabBulk.addEventListener('click', () => {
+    importTabBulk.classList.add('active');
+    importTabSingle.classList.remove('active');
+    document.getElementById('import-bulk-panel').hidden = false;
+    document.getElementById('import-single-panel').hidden = true;
+  });
+  importTabSingle.addEventListener('click', () => {
+    importTabSingle.classList.add('active');
+    importTabBulk.classList.remove('active');
+    document.getElementById('import-single-panel').hidden = false;
+    document.getElementById('import-bulk-panel').hidden = true;
+  });
+}
+
+const singlePositionForm = document.getElementById('single-position-form');
+if (singlePositionForm) {
+  const nameInput = document.getElementById('sp-name');
+  const assetklasseSelect = document.getElementById('sp-assetklasse');
+  const typSelect = document.getElementById('sp-typ');
+  let typManuallySet = false;
+  typSelect.addEventListener('change', () => { typManuallySet = true; });
+
+  nameInput.addEventListener('blur', () => {
+    if (!nameInput.value.trim()) return;
+    assetklasseSelect.value = guessAssetklasse(nameInput.value);
+    if (!typManuallySet) {
+      typSelect.value = guessAusschuettungsart(nameInput.value, assetklasseSelect.value) || '';
+    }
+  });
+
+  singlePositionForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const statusEl = document.getElementById('single-position-status');
+    const submitBtn = singlePositionForm.querySelector('button[type="submit"]');
+
+    const menge = parseGermanNumber(document.getElementById('sp-menge').value);
+    const kaufpreis_per_einheit = parseGermanNumber(document.getElementById('sp-kaufpreis').value);
+    const akt_kurs = parseGermanNumber(document.getElementById('sp-kurs').value);
+
+    const position = {
+      isin: document.getElementById('sp-isin').value.trim(),
+      wertpapier_name: nameInput.value.trim(),
+      assetklasse: assetklasseSelect.value,
+      ausschuettungsart: typSelect.value || null,
+      menge,
+      kaufpreis_per_einheit,
+      kaufdatum: document.getElementById('sp-kaufdatum').value || null,
+    };
+    if (akt_kurs != null && menge != null) {
+      position.akt_kurs = akt_kurs;
+      position.akt_wert = akt_kurs * menge;
+    }
+
+    submitBtn.disabled = true;
+    statusEl.textContent = 'Lege Position an …';
+    try {
+      await apiFetch('import', {
+        method: 'POST',
+        body: JSON.stringify({
+          depot_name: document.getElementById('sp-depot').value.trim(),
+          broker: document.getElementById('sp-broker').value.trim(),
+          positions: [position],
+        }),
+      });
+      statusEl.textContent = 'Position angelegt.';
+      singlePositionForm.reset();
+      typManuallySet = false;
+      await refreshDashboard();
+      await loadFilters();
+    } catch (err) {
+      statusEl.textContent = `Fehler: ${err.message}`;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}

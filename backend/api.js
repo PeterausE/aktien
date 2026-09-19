@@ -4,8 +4,9 @@ const express = require('express');
 const pool = require('./db');
 const { login, requireAuth, requireFullAccess } = require('./auth');
 const { asyncHandler, gainLoss } = require('./utils');
-const { refreshAllPositions } = require('./prices');
+const { refreshAllPositions, searchYahooSymbol, getKpis } = require('./prices');
 const { getPositionPerformance } = require('./performance');
+const { getNewsSummary } = require('./news');
 const { sendDailyBriefing } = require('./email');
 const { startScheduler } = require('./scheduler');
 
@@ -75,6 +76,53 @@ app.get('/api/positions', requireAuth, asyncHandler(async (req, res) => {
   res.json(merged);
 }));
 
+app.get('/api/positions/:id', requireAuth, asyncHandler(async (req, res) => {
+  const [[position]] = await pool.query(
+    `SELECT p.*, s.current_price_per_unit, s.current_total_value,
+            s.gain_loss_absolute, s.gain_loss_percent, s.snapshot_date
+     FROM positions p
+     LEFT JOIN daily_snapshots s
+       ON s.position_id = p.id
+      AND s.snapshot_date = (SELECT MAX(snapshot_date) FROM daily_snapshots WHERE position_id = p.id)
+     WHERE p.id = ? AND p.deleted_at IS NULL`,
+    [req.params.id],
+  );
+  if (!position) return res.status(404).json({ error: 'Position nicht gefunden' });
+
+  const [performance] = await getPositionPerformance(pool, [position.id]);
+  res.json({ ...position, ...performance });
+}));
+
+// On-Demand-Kennzahlen + News fuer die Detailseite - wird bewusst NICHT zwischengespeichert,
+// jeder Seitenaufruf fragt frisch bei Yahoo an (siehe Anforderung: "on demand ... schauen").
+app.get('/api/positions/:id/insights', requireAuth, asyncHandler(async (req, res) => {
+  const [[position]] = await pool.query(
+    'SELECT id, isin, wertpapier_name, yahoo_symbol FROM positions WHERE id = ? AND deleted_at IS NULL',
+    [req.params.id],
+  );
+  if (!position) return res.status(404).json({ error: 'Position nicht gefunden' });
+
+  const result = { kpis: null, news: null, errors: [] };
+
+  try {
+    const symbol = position.yahoo_symbol || await searchYahooSymbol(position.isin);
+    if (symbol !== position.yahoo_symbol) {
+      await pool.query('UPDATE positions SET yahoo_symbol = ? WHERE id = ?', [symbol, position.id]);
+    }
+    result.kpis = await getKpis(symbol);
+  } catch (err) {
+    result.errors.push(`Kennzahlen: ${err.message}`);
+  }
+
+  try {
+    result.news = await getNewsSummary(position.wertpapier_name);
+  } catch (err) {
+    result.errors.push(`News: ${err.message}`);
+  }
+
+  res.json(result);
+}));
+
 app.post('/api/positions', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const {
     depot_name, isin, wertpapier_name, assetklasse,
@@ -132,15 +180,32 @@ app.delete('/api/positions/:id', requireAuth, requireFullAccess, asyncHandler(as
 
 app.get('/api/snapshots/:timeframe', requireAuth, asyncHandler(async (req, res) => {
   const { timeframe } = req.params;
+  const { depot, assetklasse } = req.query;
   const days = TIMEFRAME_DAYS[timeframe];
 
+  const conditions = ['p.deleted_at IS NULL'];
+  const params = [];
+  if (days) {
+    conditions.push('s.snapshot_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)');
+    params.push(days);
+  }
+  if (depot) {
+    conditions.push('p.depot_name = ?');
+    params.push(depot);
+  }
+  if (assetklasse) {
+    conditions.push('p.assetklasse = ?');
+    params.push(assetklasse);
+  }
+
   const [rows] = await pool.query(
-    `SELECT snapshot_date, SUM(current_total_value) AS portfolio_value
-     FROM daily_snapshots
-     ${days ? 'WHERE snapshot_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)' : ''}
-     GROUP BY snapshot_date
-     ORDER BY snapshot_date`,
-    days ? [days] : [],
+    `SELECT s.snapshot_date, SUM(s.current_total_value) AS portfolio_value
+     FROM daily_snapshots s
+     JOIN positions p ON p.id = s.position_id
+     WHERE ${conditions.join(' AND ')}
+     GROUP BY s.snapshot_date
+     ORDER BY s.snapshot_date`,
+    params,
   );
   res.json(rows);
 }));
@@ -237,6 +302,45 @@ app.post('/api/refresh-prices', requireAuth, requireFullAccess, asyncHandler(asy
 
   res.write(`${JSON.stringify({ type: 'done', ...result })}\n`);
   res.end();
+}));
+
+function csvEscape(value) {
+  if (value == null) return '';
+  const s = String(value);
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+app.get('/api/export/csv', requireAuth, asyncHandler(async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT p.depot_name, p.wertpapier_name, p.isin, p.assetklasse, p.ausschuettungsart,
+            p.menge, p.kaufdatum, p.kaufpreis_per_einheit, p.broker,
+            s.current_price_per_unit, s.current_total_value, s.gain_loss_absolute, s.gain_loss_percent, s.snapshot_date
+     FROM positions p
+     LEFT JOIN daily_snapshots s
+       ON s.position_id = p.id
+      AND s.snapshot_date = (SELECT MAX(snapshot_date) FROM daily_snapshots WHERE position_id = p.id)
+     WHERE p.deleted_at IS NULL
+     ORDER BY p.depot_name, p.wertpapier_name`,
+  );
+
+  const header = [
+    'Depot', 'Wertpapier', 'ISIN', 'Assetklasse', 'Typ', 'Anzahl', 'Kaufdatum',
+    'Kaufpreis', 'Broker', 'Aktueller Kurs', 'Wert der Position', 'Gewinn/Verlust EUR',
+    'Gewinn/Verlust %', 'Kursdatum',
+  ];
+  const lines = [header.join(';')];
+  for (const r of rows) {
+    lines.push([
+      r.depot_name, r.wertpapier_name, r.isin, r.assetklasse, r.ausschuettungsart,
+      r.menge, r.kaufdatum, r.kaufpreis_per_einheit, r.broker,
+      r.current_price_per_unit, r.current_total_value, r.gain_loss_absolute, r.gain_loss_percent,
+      r.snapshot_date,
+    ].map(csvEscape).join(';'));
+  }
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="aktienaufstellung-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(`﻿${lines.join('\r\n')}`);
 }));
 
 app.post('/api/send-briefing', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {

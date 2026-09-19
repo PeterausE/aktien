@@ -12,14 +12,37 @@ async function searchYahooSymbol(isin) {
   return match.symbol;
 }
 
-async function getYahooChartQuote(symbol) {
+async function getYahooChartMeta(symbol) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
   const res = await fetch(url, { headers: YAHOO_HEADERS });
   if (!res.ok) throw new Error(`Kursabfrage fehlgeschlagen (${res.status})`);
   const data = await res.json();
   const meta = data.chart?.result?.[0]?.meta;
   if (meta?.regularMarketPrice == null) throw new Error('Kein Kurs in Yahoo-Antwort');
+  return meta;
+}
+
+async function getYahooChartQuote(symbol) {
+  const meta = await getYahooChartMeta(symbol);
   return { price: meta.regularMarketPrice, currency: meta.currency };
+}
+
+// Kennzahlen fuer die Positions-Detailseite. quoteSummary (KGV, Dividendenrendite etc.)
+// verlangt inzwischen einen Auth-Crumb und ist ohne Login nicht nutzbar - diese Felder
+// stammen daher bewusst nur aus den frei zugaenglichen chart-meta-Daten.
+async function getKpis(symbol) {
+  const meta = await getYahooChartMeta(symbol);
+  return {
+    currency: meta.currency,
+    exchange: meta.fullExchangeName,
+    regularMarketPrice: meta.regularMarketPrice,
+    previousClose: meta.chartPreviousClose,
+    dayHigh: meta.regularMarketDayHigh,
+    dayLow: meta.regularMarketDayLow,
+    fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
+    fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
+    volume: meta.regularMarketVolume,
+  };
 }
 
 // Waehrungskurse innerhalb eines Refresh-Laufs cachen statt pro Position neu abzufragen.
@@ -85,4 +108,4 @@ async function refreshAllPositions(pool, { gainLoss, onProgress } = {}) {
   return result;
 }
 
-module.exports = { fetchEurPrice, sleep, refreshAllPositions };
+module.exports = { fetchEurPrice, sleep, refreshAllPositions, searchYahooSymbol, getKpis };

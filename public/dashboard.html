@@ -13,6 +13,7 @@
       <span id="current-user"></span>
       <span id="refresh-status" class="refresh-status"></span>
       <button id="refresh-prices-btn" class="toolbar-btn" hidden>Alle aktualisieren</button>
+      <button id="export-csv-btn" class="toolbar-btn">Export CSV</button>
       <button id="import-toggle-btn" class="toolbar-btn" hidden>Import</button>
       <button id="logout-btn">Abmelden</button>
     </div>
@@ -21,27 +22,67 @@
   <main class="dashboard">
     <section id="import-section" class="import-section" hidden>
       <h2>Positionen importieren</h2>
-      <p class="hint">
-        Eine Zeile pro Position, Felder getrennt mit <code>|</code>:<br />
-        <code>ISIN|Name|Assetklasse|Menge|Kaufkurs|Akt.Kurs|Gesamt %|Gesamt €</code><br />
-        Assetklasse wird beim Einlesen automatisch geschätzt (aktie/etf/anleihe) und kann pro Zeile korrigiert werden.
-        Dezimalzahlen mit Punkt oder Komma, Tausendertrennzeichen werden ignoriert.
-      </p>
-      <div class="import-meta">
-        <label>
-          Depotname
-          <input type="text" id="import-depot" placeholder="z. B. Zero Peter" />
-        </label>
-        <label>
-          Broker
-          <input type="text" id="import-broker" placeholder="z. B. Zero" />
-        </label>
+      <div class="import-tabs">
+        <button type="button" id="import-tab-bulk" class="import-tab active">Mehrere einfügen</button>
+        <button type="button" id="import-tab-single" class="import-tab">Einzelne Position</button>
       </div>
-      <textarea id="import-raw" rows="8" placeholder="IE00B4L5YC18|iShares MSCI EM UCITS ETF USD (Acc)|etf|304|35,457|55,88|57,60|6208,46"></textarea>
-      <div class="import-actions">
-        <button id="import-parse-btn">Zeilen einlesen</button>
+
+      <div id="import-bulk-panel">
+        <p class="hint">
+          Eine Zeile pro Position, Felder getrennt mit <code>|</code>:<br />
+          <code>ISIN|Name|Assetklasse|Menge|Kaufkurs|Akt.Kurs|Gesamt %|Gesamt €</code><br />
+          Assetklasse wird beim Einlesen automatisch geschätzt (aktie/etf/anleihe) und kann pro Zeile korrigiert werden.
+          Dezimalzahlen mit Punkt oder Komma, Tausendertrennzeichen werden ignoriert.
+        </p>
+        <div class="import-meta">
+          <label>
+            Depotname
+            <input type="text" id="import-depot" placeholder="z. B. Zero Peter" />
+          </label>
+          <label>
+            Broker
+            <input type="text" id="import-broker" placeholder="z. B. Zero" />
+          </label>
+        </div>
+        <textarea id="import-raw" rows="8" placeholder="IE00B4L5YC18|iShares MSCI EM UCITS ETF USD (Acc)|etf|304|35,457|55,88|57,60|6208,46"></textarea>
+        <div class="import-actions">
+          <button id="import-parse-btn">Zeilen einlesen</button>
+        </div>
+        <div id="import-preview"></div>
       </div>
-      <div id="import-preview"></div>
+
+      <div id="import-single-panel" hidden>
+        <p class="hint">
+          Legt eine einzelne Position an. Aktueller Kurs ist optional - ohne Angabe füllt ihn
+          "Alle aktualisieren" beim nächsten Kursabruf.
+        </p>
+        <form id="single-position-form" class="single-position-form">
+          <label>Depotname <input type="text" id="sp-depot" required /></label>
+          <label>Broker <input type="text" id="sp-broker" /></label>
+          <label>ISIN <input type="text" id="sp-isin" required /></label>
+          <label>Name <input type="text" id="sp-name" required /></label>
+          <label>Assetklasse
+            <select id="sp-assetklasse">
+              <option value="aktie">Aktie</option>
+              <option value="etf">ETF</option>
+              <option value="anleihe">Anleihe</option>
+            </select>
+          </label>
+          <label>Typ
+            <select id="sp-typ">
+              <option value="">? unbekannt</option>
+              <option value="T">T (Thesaurierend)</option>
+              <option value="A">A (Ausschüttend)</option>
+            </select>
+          </label>
+          <label>Anzahl <input type="text" id="sp-menge" required /></label>
+          <label>Kaufpreis pro Einheit <input type="text" id="sp-kaufpreis" required /></label>
+          <label>Kaufdatum <input type="date" id="sp-kaufdatum" /></label>
+          <label>Aktueller Kurs <input type="text" id="sp-kurs" /></label>
+          <button type="submit">Position anlegen</button>
+        </form>
+        <p id="single-position-status"></p>
+      </div>
     </section>
 
     <section class="filters">

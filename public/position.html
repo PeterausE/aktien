@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aktienaufstellung – Position</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1><a href="dashboard.html" class="back-link">←</a> <span id="position-title">Position</span></h1>
+    <div class="topbar-right">
+      <span id="current-user"></span>
+      <button id="logout-btn">Abmelden</button>
+    </div>
+  </header>
+
+  <main class="position-detail">
+    <section class="position-card">
+      <div class="position-grid" id="position-grid"></div>
+      <div class="position-edit" id="position-edit" hidden>
+        <label>Anzahl <input type="text" id="edit-menge" /></label>
+        <label>Kaufpreis pro Einheit <input type="text" id="edit-kaufpreis" /></label>
+        <button id="save-position-btn">Speichern</button>
+        <span id="save-status"></span>
+      </div>
+    </section>
+
+    <section class="position-card">
+      <h2>Kennzahlen</h2>
+      <p id="kpi-status" class="hint">Lade Kennzahlen …</p>
+      <div class="kpi-grid" id="kpi-grid"></div>
+    </section>
+
+    <section class="position-card">
+      <h2>Aktuelle Meldungen</h2>
+      <p id="news-status" class="hint"></p>
+      <ul id="news-list" class="news-list"></ul>
+    </section>
+  </main>
+
+  <script src="js/auth.js"></script>
+  <script src="js/position.js"></script>
+</body>
+</html>
