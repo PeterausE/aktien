@@ -1,11 +1,18 @@
 const nodemailer = require('nodemailer');
 
+// WICHTIG: SMTP_* sind ausschliesslich die Versand-Zugangsdaten (Hostinger-Postfach
+// info@gawborbeck.cloud). Der Empfaenger ist davon komplett getrennt und bewusst fest
+// verdrahtet - siehe sendDailyBriefing() unten. Niemals eine Empfaengerliste aus einem
+// anderen Projekt (z. B. ausstellung-app/ANFRAGEN_EMPFAENGER) hier einbinden.
+const RECIPIENT = 'peter.dewendt@gmx.de';
+
 function getTransport() {
+  const port = Number(process.env.SMTP_PORT) || 587;
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'mail.gmx.net',
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: false, // STARTTLS auf Port 587
-    auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
+    host: process.env.SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
   });
 }
 
@@ -96,8 +103,8 @@ async function sendDailyBriefing(pool) {
   const summary = await getPortfolioSummary(pool);
   const transport = getTransport();
   await transport.sendMail({
-    from: process.env.MAIL_USER,
-    to: process.env.MAIL_USER,
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: RECIPIENT,
     subject: `Aktienaufstellung – ${fmtEur(summary.total)} (${summary.snapshotDate ?? 'heute'})`,
     html: buildBriefingHtml(summary),
   });
