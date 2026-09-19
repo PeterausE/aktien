@@ -103,11 +103,14 @@ async function loadInsights() {
     window.location.href = 'index.html';
     return;
   }
-  if (!positionId) {
+  if (!positionId || auth.role !== 'admin') {
+    // Positionsdetails sind Peter vorbehalten (siehe /api/positions/:id auf dem Server) -
+    // Benni hat dafuer ohnehin keinen UI-Weg hierher; ein direkter Aufruf landet sauber
+    // zurueck auf dem Dashboard statt in einer haengenden "Lade..."-Anzeige.
     window.location.href = 'dashboard.html';
     return;
   }
-  document.getElementById('current-user').textContent = `${auth.username} (${auth.role === 'admin' ? 'Vollzugriff' : 'Nur Ansicht'})`;
+  document.getElementById('current-user').textContent = `${auth.username} (Vollzugriff)`;
 
   await loadPosition();
   loadInsights();
