@@ -4,8 +4,10 @@ const express = require('express');
 const pool = require('./db');
 const { login, requireAuth, requireFullAccess } = require('./auth');
 const { asyncHandler, gainLoss } = require('./utils');
-const { fetchEurPrice, sleep } = require('./prices');
+const { refreshAllPositions } = require('./prices');
 const { getPositionPerformance } = require('./performance');
+const { sendDailyBriefing } = require('./email');
+const { startScheduler } = require('./scheduler');
 
 const app = express();
 app.use(express.json());
@@ -223,51 +225,23 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
 }));
 
 app.post('/api/refresh-prices', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
-  const [positions] = await pool.query(
-    `SELECT id, isin, wertpapier_name, menge, kaufpreis_per_einheit, yahoo_symbol
-     FROM positions WHERE deleted_at IS NULL`,
-  );
-
   // NDJSON-Stream (eine JSON-Zeile pro Ereignis) statt einer einzelnen Antwort am Ende -
   // das Frontend kann so live anzeigen, welche Position gerade abgefragt wird.
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.flushHeaders();
 
-  const result = { updated: 0, failed: [] };
-
-  for (const p of positions) {
-    res.write(`${JSON.stringify({ type: 'progress', name: p.wertpapier_name })}\n`);
-    try {
-      const { symbol, priceEur } = await fetchEurPrice(p.isin, p.yahoo_symbol);
-
-      if (symbol !== p.yahoo_symbol) {
-        await pool.query('UPDATE positions SET yahoo_symbol = ? WHERE id = ?', [symbol, p.id]);
-      }
-
-      const totalValue = priceEur * Number(p.menge);
-      const { absolute, percent } = gainLoss(totalValue, Number(p.menge), Number(p.kaufpreis_per_einheit));
-
-      await pool.query(
-        `INSERT INTO daily_snapshots
-          (position_id, snapshot_date, current_price_per_unit, current_total_value, gain_loss_absolute, gain_loss_percent)
-         VALUES (?, CURDATE(), ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           current_price_per_unit = VALUES(current_price_per_unit),
-           current_total_value = VALUES(current_total_value),
-           gain_loss_absolute = VALUES(gain_loss_absolute),
-           gain_loss_percent = VALUES(gain_loss_percent)`,
-        [p.id, priceEur, totalValue, absolute, percent],
-      );
-      result.updated += 1;
-    } catch (err) {
-      result.failed.push({ isin: p.isin, wertpapier_name: p.wertpapier_name, error: err.message });
-    }
-    // kleine Pause zwischen Requests - Yahoo bietet keinen offiziellen API-Key/Rate-Limit-Vertrag.
-    await sleep(300);
-  }
+  const result = await refreshAllPositions(pool, {
+    gainLoss,
+    onProgress: (p) => res.write(`${JSON.stringify({ type: 'progress', name: p.wertpapier_name })}\n`),
+  });
 
   res.write(`${JSON.stringify({ type: 'done', ...result })}\n`);
   res.end();
+}));
+
+app.post('/api/send-briefing', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
+  const summary = await sendDailyBriefing(pool);
+  res.json({ sent: true, total: summary.total, snapshotDate: summary.snapshotDate });
 }));
 
 app.use((err, req, res, next) => {
@@ -278,3 +252,4 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`aktien-api läuft auf Port ${PORT}`));
+startScheduler();
