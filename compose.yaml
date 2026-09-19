@@ -1,0 +1,58 @@
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  aktien-db-data:
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - aktien-db-data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    # Port 3306 bewusst nicht veroeffentlicht - nur intern fuer den app-Container erreichbar.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - internal
+    expose:
+      - "3000"
+    labels:
+      - traefik.enable=true
+      # /aktien ohne trailing slash -> mit Slash umleiten, damit die relativen
+      # Pfade in index.html/dashboard.html (css/, js/, api/) korrekt aufloesen
+      # (gleiches Muster wie beim bestehenden Projekt ausstellung-app).
+      - traefik.http.middlewares.aktien-addslash.redirectregex.regex=^https://gawborbeck.cloud/aktien$$
+      - traefik.http.middlewares.aktien-addslash.redirectregex.replacement=https://gawborbeck.cloud/aktien/
+      - traefik.http.middlewares.aktien-addslash.redirectregex.permanent=true
+      - traefik.http.middlewares.aktien-strip.stripprefix.prefixes=/aktien
+      - traefik.http.routers.aktien.entrypoints=websecure
+      - traefik.http.routers.aktien.rule=Host(`gawborbeck.cloud`) && PathPrefix(`/aktien`)
+      - traefik.http.routers.aktien.middlewares=aktien-addslash,aktien-strip
+      - traefik.http.routers.aktien.priority=100
+      - traefik.http.routers.aktien.tls.certresolver=letsencrypt
+      - traefik.http.services.aktien.loadbalancer.server.port=3000
