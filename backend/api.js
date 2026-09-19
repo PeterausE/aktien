@@ -5,6 +5,7 @@ const pool = require('./db');
 const { login, requireAuth, requireFullAccess } = require('./auth');
 const { asyncHandler, gainLoss } = require('./utils');
 const { fetchEurPrice, sleep } = require('./prices');
+const { getPositionPerformance } = require('./performance');
 
 const app = express();
 app.use(express.json());
@@ -64,7 +65,12 @@ app.get('/api/positions', requireAuth, asyncHandler(async (req, res) => {
      ORDER BY p.depot_name, p.wertpapier_name`,
     params,
   );
-  res.json(rows);
+
+  const performance = await getPositionPerformance(pool, rows.map((r) => r.id));
+  const performanceById = new Map(performance.map((p) => [p.id, p]));
+  const merged = rows.map((r) => ({ ...r, ...performanceById.get(r.id) }));
+
+  res.json(merged);
 }));
 
 app.post('/api/positions', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
@@ -215,9 +221,15 @@ app.post('/api/refresh-prices', requireAuth, requireFullAccess, asyncHandler(asy
      FROM positions WHERE deleted_at IS NULL`,
   );
 
+  // NDJSON-Stream (eine JSON-Zeile pro Ereignis) statt einer einzelnen Antwort am Ende -
+  // das Frontend kann so live anzeigen, welche Position gerade abgefragt wird.
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.flushHeaders();
+
   const result = { updated: 0, failed: [] };
 
   for (const p of positions) {
+    res.write(`${JSON.stringify({ type: 'progress', name: p.wertpapier_name })}\n`);
     try {
       const { symbol, priceEur } = await fetchEurPrice(p.isin, p.yahoo_symbol);
 
@@ -247,11 +259,13 @@ app.post('/api/refresh-prices', requireAuth, requireFullAccess, asyncHandler(asy
     await sleep(300);
   }
 
-  res.json(result);
+  res.write(`${JSON.stringify({ type: 'done', ...result })}\n`);
+  res.end();
 }));
 
 app.use((err, req, res, next) => {
   console.error(err);
+  if (res.headersSent) return res.end();
   res.status(500).json({ error: 'Interner Serverfehler' });
 });
 

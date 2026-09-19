@@ -5,6 +5,14 @@ function fmtCurrency(value) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number(value ?? 0));
 }
 
+function fmtPercent(value) {
+  return value == null ? '–' : `${Number(value).toFixed(2)} %`;
+}
+
+function gainClass(value) {
+  return value == null || Number(value) >= 0 ? 'gain' : 'loss';
+}
+
 async function loadFilters() {
   const { depots, assetklassen } = await apiFetch('filters');
   const depotSelect = document.getElementById('filter-depot');
@@ -35,7 +43,6 @@ async function loadPositions() {
   for (const p of positions) {
     const tr = document.createElement('tr');
     const gainLossPercent = p.gain_loss_percent != null ? Number(p.gain_loss_percent) : null;
-    const gainLossClass = gainLossPercent == null || gainLossPercent >= 0 ? 'gain' : 'loss';
     tr.innerHTML = `
       <td>${p.depot_name}</td>
       <td>${p.wertpapier_name}</td>
@@ -43,8 +50,13 @@ async function loadPositions() {
       <td>${p.assetklasse}</td>
       <td>${Number(p.menge)}</td>
       <td>${fmtCurrency(p.kaufpreis_per_einheit)}</td>
+      <td>${p.current_price_per_unit != null ? fmtCurrency(p.current_price_per_unit) : '–'}</td>
       <td>${p.current_total_value != null ? fmtCurrency(p.current_total_value) : '–'}</td>
-      <td class="${gainLossClass}">${gainLossPercent != null ? gainLossPercent.toFixed(2) + ' %' : '–'}</td>
+      <td class="${gainClass(gainLossPercent)}">${fmtPercent(gainLossPercent)}</td>
+      <td class="${gainClass(p.change_1d)}">${fmtPercent(p.change_1d)}</td>
+      <td class="${gainClass(p.change_1w)}">${fmtPercent(p.change_1w)}</td>
+      <td class="${gainClass(p.change_1m)}">${fmtPercent(p.change_1m)}</td>
+      <td class="${gainClass(p.change_1y)}">${fmtPercent(p.change_1y)}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -74,15 +86,50 @@ function initTimeframeButtons() {
 async function refreshPrices() {
   const btn = document.getElementById('refresh-prices-btn');
   const statusEl = document.getElementById('refresh-status');
+  const auth = getAuth();
 
   btn.disabled = true;
   statusEl.textContent = 'Aktualisiere Kurse … (kann bis zu 1 Minute dauern)';
 
   try {
-    const result = await apiFetch('refresh-prices', { method: 'POST' });
-    statusEl.textContent = result.failed.length === 0
-      ? `${result.updated} Kurse aktualisiert.`
-      : `${result.updated} aktualisiert, ${result.failed.length} fehlgeschlagen: ${result.failed.map((f) => f.wertpapier_name).join(', ')}`;
+    const res = await fetch('api/refresh-prices', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+    });
+    if (res.status === 401) {
+      clearAuth();
+      window.location.href = 'index.html';
+      return;
+    }
+    if (!res.ok) throw new Error(`Fehler ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let final = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === 'progress') {
+          statusEl.textContent = `Aktualisiere: ${event.name} …`;
+        } else if (event.type === 'done') {
+          final = event;
+        }
+      }
+    }
+
+    statusEl.textContent = !final || final.failed.length === 0
+      ? `${final?.updated ?? 0} Kurse aktualisiert.`
+      : `${final.updated} aktualisiert, ${final.failed.length} fehlgeschlagen: ${final.failed.map((f) => f.wertpapier_name).join(', ')}`;
     await refreshDashboard();
   } catch (err) {
     statusEl.textContent = `Fehler: ${err.message}`;
