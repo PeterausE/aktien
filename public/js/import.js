@@ -16,6 +16,15 @@ function guessAssetklasse(name) {
   return 'aktie';
 }
 
+// Aktien schuetten Dividenden direkt an den Aktionaer aus - "thesaurierend" ist ein
+// Konzept von Fondshuellen (ETF/Anleihe), daher bei Einzelaktien immer 'A'.
+function guessAusschuettungsart(name, assetklasse) {
+  if (assetklasse === 'aktie') return 'A';
+  if (/\b(acc|accumulating|thesaurierend)\b/i.test(name)) return 'T';
+  if (/\b(dis|dist|distributing|ausschüttend)\b/i.test(name)) return 'A';
+  return null;
+}
+
 function parseImportRows(raw) {
   return raw
     .split('\n')
@@ -32,6 +41,7 @@ function parseImportRows(raw) {
         isin: isin || '',
         wertpapier_name: wertpapier_name || '',
         assetklasse,
+        ausschuettungsart: guessAusschuettungsart(wertpapier_name || '', assetklasse),
         menge: parseGermanNumber(menge),
         kaufpreis_per_einheit: parseGermanNumber(kaufkurs),
         akt_kurs: parseGermanNumber(aktKurs),
@@ -53,7 +63,7 @@ function renderImportPreview(rows) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th>ISIN</th><th>Name</th><th>Assetklasse</th><th>Menge</th>
+        <th>ISIN</th><th>Name</th><th>Assetklasse</th><th>Typ</th><th>Menge</th>
         <th>Kaufkurs</th><th>Akt. Kurs</th><th>Gesamt %</th><th>Gesamt €</th>
       </tr>
     </thead>
@@ -74,6 +84,13 @@ function renderImportPreview(rows) {
           <option value="aktie" ${row.assetklasse === 'aktie' ? 'selected' : ''}>Aktie</option>
           <option value="etf" ${row.assetklasse === 'etf' ? 'selected' : ''}>ETF</option>
           <option value="anleihe" ${row.assetklasse === 'anleihe' ? 'selected' : ''}>Anleihe</option>
+        </select>
+      </td>
+      <td>
+        <select data-index="${i}" class="typ-select">
+          <option value="" ${!row.ausschuettungsart ? 'selected' : ''}>?</option>
+          <option value="T" ${row.ausschuettungsart === 'T' ? 'selected' : ''}>T</option>
+          <option value="A" ${row.ausschuettungsart === 'A' ? 'selected' : ''}>A</option>
         </select>
       </td>
       <td>${row.menge ?? '–'}</td>
@@ -100,6 +117,12 @@ function renderImportPreview(rows) {
   table.querySelectorAll('.assetklasse-select').forEach((select) => {
     select.addEventListener('change', (e) => {
       rows[Number(e.target.dataset.index)].assetklasse = e.target.value;
+    });
+  });
+
+  table.querySelectorAll('.typ-select').forEach((select) => {
+    select.addEventListener('change', (e) => {
+      rows[Number(e.target.dataset.index)].ausschuettungsart = e.target.value || null;
     });
   });
 

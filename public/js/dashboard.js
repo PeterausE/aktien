@@ -43,20 +43,32 @@ async function loadPositions() {
   for (const p of positions) {
     const tr = document.createElement('tr');
     const gainLossPercent = p.gain_loss_percent != null ? Number(p.gain_loss_percent) : null;
+    const menge = Number(p.menge);
+    const kauf = fmtCurrency(p.kaufpreis_per_einheit);
+    const kurs = p.current_price_per_unit != null ? fmtCurrency(p.current_price_per_unit) : '–';
+    const wert = p.current_total_value != null ? fmtCurrency(p.current_total_value) : '–';
+    const delta = fmtPercent(gainLossPercent);
+    const c1d = fmtPercent(p.change_1d);
+    const c1w = fmtPercent(p.change_1w);
+    const c1m = fmtPercent(p.change_1m);
+    const c1y = fmtPercent(p.change_1y);
+    // title-Attribut auf jeder Zelle als Fallback, falls die feste Spaltenbreite
+    // (table-layout: fixed + ellipsis) den Inhalt abschneidet - per Mouseover einsehbar.
     tr.innerHTML = `
-      <td>${p.depot_name}</td>
-      <td>${p.wertpapier_name}</td>
-      <td>${p.isin}</td>
-      <td>${p.assetklasse}</td>
-      <td>${Number(p.menge)}</td>
-      <td>${fmtCurrency(p.kaufpreis_per_einheit)}</td>
-      <td>${p.current_price_per_unit != null ? fmtCurrency(p.current_price_per_unit) : '–'}</td>
-      <td>${p.current_total_value != null ? fmtCurrency(p.current_total_value) : '–'}</td>
-      <td class="${gainClass(gainLossPercent)}">${fmtPercent(gainLossPercent)}</td>
-      <td class="${gainClass(p.change_1d)}">${fmtPercent(p.change_1d)}</td>
-      <td class="${gainClass(p.change_1w)}">${fmtPercent(p.change_1w)}</td>
-      <td class="${gainClass(p.change_1m)}">${fmtPercent(p.change_1m)}</td>
-      <td class="${gainClass(p.change_1y)}">${fmtPercent(p.change_1y)}</td>
+      <td class="col-depot" title="${p.depot_name}">${p.depot_name}</td>
+      <td class="col-name" title="${p.wertpapier_name}">${p.wertpapier_name}</td>
+      <td class="col-isin" title="${p.isin}">${p.isin}</td>
+      <td class="col-klasse" title="${p.assetklasse}">${p.assetklasse}</td>
+      <td class="col-typ" title="${p.ausschuettungsart === 'T' ? 'Thesaurierend' : p.ausschuettungsart === 'A' ? 'Ausschüttend' : 'unbekannt'}">${p.ausschuettungsart ?? '?'}</td>
+      <td class="col-anzahl" title="${menge}">${menge}</td>
+      <td class="col-preis" title="${kauf}">${kauf}</td>
+      <td class="col-preis" title="${kurs}">${kurs}</td>
+      <td class="col-wert" title="${wert}">${wert}</td>
+      <td class="col-delta ${gainClass(gainLossPercent)}" title="${delta}">${delta}</td>
+      <td class="col-period ${gainClass(p.change_1d)}" title="${c1d}">${c1d}</td>
+      <td class="col-period ${gainClass(p.change_1w)}" title="${c1w}">${c1w}</td>
+      <td class="col-period ${gainClass(p.change_1m)}" title="${c1m}">${c1m}</td>
+      <td class="col-period ${gainClass(p.change_1y)}" title="${c1y}">${c1y}</td>
     `;
     tbody.appendChild(tr);
   }

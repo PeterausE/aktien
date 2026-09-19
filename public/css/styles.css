@@ -133,22 +133,47 @@ body {
 
 #positions-table {
   width: 100%;
-  min-width: 1300px;
   border-collapse: collapse;
   background: #fff;
+  table-layout: fixed;
+  font-size: 0.82rem;
 }
 
 #positions-table th,
 #positions-table td {
-  padding: 0.6rem 0.8rem;
+  padding: 0.4rem 0.5rem;
   text-align: left;
   border-bottom: 1px solid #eef0f2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #positions-table th {
   background: #f9fafb;
   font-weight: 600;
 }
+
+#positions-table .col-depot { width: 7%; }
+#positions-table .col-name { width: 18%; }
+#positions-table .col-isin { width: 13%; }
+#positions-table .col-klasse { width: 5%; }
+#positions-table .col-typ {
+  width: 3%;
+  text-align: center;
+}
+#positions-table .col-anzahl,
+#positions-table .col-preis,
+#positions-table .col-wert,
+#positions-table .col-delta,
+#positions-table .col-period {
+  text-align: right;
+}
+#positions-table .col-anzahl { width: 5%; }
+#positions-table .col-preis { width: 6%; }
+#positions-table .col-wert { width: 9%; }
+#positions-table .col-delta { width: 6%; }
+#positions-table .col-period { width: 4.25%; }
 
 .gain { color: #16a34a; }
 .loss { color: #dc2626; }

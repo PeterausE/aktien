@@ -76,7 +76,7 @@ app.get('/api/positions', requireAuth, asyncHandler(async (req, res) => {
 app.post('/api/positions', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const {
     depot_name, isin, wertpapier_name, assetklasse,
-    menge, kaufdatum, kaufpreis_per_einheit, broker,
+    menge, kaufdatum, kaufpreis_per_einheit, broker, ausschuettungsart,
   } = req.body || {};
 
   if (!depot_name || !isin || !wertpapier_name || !assetklasse || !menge || !kaufdatum || !kaufpreis_per_einheit) {
@@ -85,19 +85,22 @@ app.post('/api/positions', requireAuth, requireFullAccess, asyncHandler(async (r
   if (!['aktie', 'etf', 'anleihe'].includes(assetklasse)) {
     return res.status(400).json({ error: 'Ungültige Assetklasse' });
   }
+  if (ausschuettungsart && !['T', 'A'].includes(ausschuettungsart)) {
+    return res.status(400).json({ error: 'Ungültige Ausschüttungsart' });
+  }
 
   const [result] = await pool.query(
     `INSERT INTO positions
-      (depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker || null],
+      (depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker, ausschuettungsart)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker || null, ausschuettungsart || null],
   );
   res.status(201).json({ id: result.insertId });
 }));
 
 app.put('/api/positions/:id', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const fields = ['depot_name', 'isin', 'wertpapier_name', 'assetklasse', 'menge', 'kaufdatum', 'kaufpreis_per_einheit', 'broker'];
+  const fields = ['depot_name', 'isin', 'wertpapier_name', 'assetklasse', 'menge', 'kaufdatum', 'kaufpreis_per_einheit', 'broker', 'ausschuettungsart'];
   const updates = fields.filter((f) => req.body?.[f] !== undefined);
 
   if (updates.length === 0) {
@@ -152,7 +155,7 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
 
     for (const row of positions) {
       const {
-        isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit,
+        isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, ausschuettungsart,
         akt_kurs, akt_wert, gain_loss_percent, gain_loss_absolute,
       } = row;
 
@@ -161,6 +164,9 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
       }
       if (!['aktie', 'etf', 'anleihe'].includes(assetklasse)) {
         throw new Error(`Ungültige Assetklasse bei ${wertpapier_name}`);
+      }
+      if (ausschuettungsart && !['T', 'A'].includes(ausschuettungsart)) {
+        throw new Error(`Ungültige Ausschüttungsart bei ${wertpapier_name}`);
       }
 
       const [existing] = await conn.query(
@@ -172,15 +178,15 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
       if (existing.length > 0) {
         positionId = existing[0].id;
         await conn.query(
-          `UPDATE positions SET wertpapier_name = ?, assetklasse = ?, menge = ?, kaufpreis_per_einheit = ?, broker = ?
+          `UPDATE positions SET wertpapier_name = ?, assetklasse = ?, menge = ?, kaufpreis_per_einheit = ?, broker = ?, ausschuettungsart = ?
            WHERE id = ?`,
-          [wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, positionId],
+          [wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, ausschuettungsart || null, positionId],
         );
       } else {
         const [result] = await conn.query(
-          `INSERT INTO positions (depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker)
-           VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
-          [depot_name, isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null],
+          `INSERT INTO positions (depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker, ausschuettungsart)
+           VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+          [depot_name, isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, ausschuettungsart || null],
         );
         positionId = result.insertId;
       }
