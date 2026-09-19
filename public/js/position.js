@@ -130,5 +130,19 @@ async function loadInsights() {
         statusEl.textContent = `Fehler: ${err.message}`;
       }
     });
+
+    document.getElementById('delete-position-btn').addEventListener('click', async () => {
+      const title = document.getElementById('position-title').textContent;
+      if (!confirm(`Position "${title}" wirklich löschen?`)) return;
+
+      const statusEl = document.getElementById('save-status');
+      statusEl.textContent = 'Lösche …';
+      try {
+        await apiFetch(`positions/${positionId}`, { method: 'DELETE' });
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        statusEl.textContent = `Fehler: ${err.message}`;
+      }
+    });
   }
 })();

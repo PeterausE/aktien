@@ -35,30 +35,45 @@ async function checkNewsHighlights() {
   return highlights;
 }
 
+// 09:00-Job: Kursabfrage + News-Check. Als eigene Funktion exportiert, damit sie sowohl
+// vom Cron als auch von einem manuellen Test-Endpoint (/api/run-morning-routine) genutzt
+// werden kann, ohne die Logik zu duplizieren.
+async function runPriceRefreshJob() {
+  const result = await refreshAllPositions(pool, { gainLoss });
+  console.log(`[scheduler] Kursabfrage: ${result.updated} aktualisiert, ${result.failed.length} fehlgeschlagen`);
+
+  try {
+    lastNewsHighlights = await checkNewsHighlights();
+    console.log(`[scheduler] News-Check: ${lastNewsHighlights.length} Position(en) mit aktuellen Meldungen`);
+  } catch (err) {
+    console.error('[scheduler] News-Check fehlgeschlagen:', err.message);
+    lastNewsHighlights = [];
+  }
+
+  return result;
+}
+
+// 09:15-Job: Briefing mit dem Stand aus runPriceRefreshJob() (In-Memory, siehe oben).
+async function runBriefingJob() {
+  const summary = await sendDailyBriefing(pool, lastNewsHighlights);
+  console.log('[scheduler] Tagesbriefing versendet');
+  return summary;
+}
+
 // Kursabfrage zuerst (09:00 Uhr), danach das Briefing (09:15 Uhr) - so meldet die Mail
 // tagesaktuelle statt gestrige Kurse.
 function startScheduler() {
   cron.schedule('0 9 * * *', async () => {
     try {
-      const result = await refreshAllPositions(pool, { gainLoss });
-      console.log(`[scheduler] Kursabfrage: ${result.updated} aktualisiert, ${result.failed.length} fehlgeschlagen`);
+      await runPriceRefreshJob();
     } catch (err) {
       console.error('[scheduler] Kursabfrage fehlgeschlagen:', err.message);
-    }
-
-    try {
-      lastNewsHighlights = await checkNewsHighlights();
-      console.log(`[scheduler] News-Check: ${lastNewsHighlights.length} Position(en) mit aktuellen Meldungen`);
-    } catch (err) {
-      console.error('[scheduler] News-Check fehlgeschlagen:', err.message);
-      lastNewsHighlights = [];
     }
   }, { timezone: 'Europe/Berlin' });
 
   cron.schedule('15 9 * * *', async () => {
     try {
-      await sendDailyBriefing(pool, lastNewsHighlights);
-      console.log('[scheduler] Tagesbriefing versendet');
+      await runBriefingJob();
     } catch (err) {
       console.error('[scheduler] Tagesbriefing fehlgeschlagen:', err.message);
     }
@@ -67,4 +82,4 @@ function startScheduler() {
   console.log('[scheduler] Jobs registriert: Kursabfrage + News-Check 09:00, Briefing 09:15 (Europe/Berlin)');
 }
 
-module.exports = { startScheduler };
+module.exports = { startScheduler, runPriceRefreshJob, runBriefingJob };

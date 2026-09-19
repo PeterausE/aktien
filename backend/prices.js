@@ -97,9 +97,11 @@ async function refreshAllPositions(pool, { gainLoss, onProgress } = {}) {
            gain_loss_percent = VALUES(gain_loss_percent)`,
         [p.id, priceEur, totalValue, absolute, percent],
       );
+      await pool.query('UPDATE positions SET last_refresh_error = NULL WHERE id = ?', [p.id]);
       result.updated += 1;
     } catch (err) {
       result.failed.push({ isin: p.isin, wertpapier_name: p.wertpapier_name, error: err.message });
+      await pool.query('UPDATE positions SET last_refresh_error = ? WHERE id = ?', [err.message.slice(0, 255), p.id]);
     }
     // kleine Pause zwischen Requests - Yahoo bietet keinen offiziellen API-Key/Rate-Limit-Vertrag.
     await sleep(300);

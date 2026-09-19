@@ -146,11 +146,16 @@ function renderImportPreview(rows) {
       container.innerHTML = '';
       await refreshDashboard();
       await loadFilters();
+      closeImportSection();
     } catch (err) {
       statusEl.textContent = `Fehler: ${err.message}`;
       submitBtn.disabled = false;
     }
   });
+}
+
+function closeImportSection() {
+  document.getElementById('import-section').hidden = true;
 }
 
 const importToggleBtn = document.getElementById('import-toggle-btn');
@@ -241,6 +246,7 @@ if (singlePositionForm) {
       typManuallySet = false;
       await refreshDashboard();
       await loadFilters();
+      closeImportSection();
     } catch (err) {
       statusEl.textContent = `Fehler: ${err.message}`;
     } finally {

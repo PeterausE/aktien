@@ -162,6 +162,14 @@ body {
   background: #f5f8ff;
 }
 
+#positions-table tbody tr.row-warning {
+  background: #fff3e0;
+}
+
+#positions-table tbody tr.row-warning:hover {
+  background: #ffe6c7;
+}
+
 #positions-table .col-depot { width: 7%; }
 #positions-table .col-name { width: 18%; }
 #positions-table .col-isin { width: 13%; }
@@ -391,6 +399,12 @@ body {
   background: #2563eb;
   color: #fff;
   cursor: pointer;
+}
+
+.danger-btn {
+  background: #fff !important;
+  color: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
 }
 
 .news-list {

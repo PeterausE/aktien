@@ -11,6 +11,7 @@ CREATE TABLE positions (
   broker VARCHAR(100),
   yahoo_symbol VARCHAR(20) NULL, -- Cache der ISIN->Symbol-Aufloesung fuer den Kurs-Refresh
   ausschuettungsart ENUM('T', 'A') NULL, -- Thesaurierend/Ausschuettend; bei Aktien i.d.R. 'A'
+  last_refresh_error VARCHAR(255) NULL, -- zuletzt fehlgeschlagener Kursabruf (Fehlermeldung); NULL nach Erfolg
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,

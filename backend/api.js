@@ -8,7 +8,7 @@ const { refreshAllPositions, searchYahooSymbol, getKpis } = require('./prices');
 const { getPositionPerformance } = require('./performance');
 const { getNewsSummary } = require('./news');
 const { sendDailyBriefing } = require('./email');
-const { startScheduler } = require('./scheduler');
+const { startScheduler, runPriceRefreshJob, runBriefingJob } = require('./scheduler');
 
 const app = express();
 app.use(express.json());
@@ -346,6 +346,19 @@ app.get('/api/export/csv', requireAuth, asyncHandler(async (req, res) => {
 app.post('/api/send-briefing', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
   const summary = await sendDailyBriefing(pool);
   res.json({ sent: true, total: summary.total, snapshotDate: summary.snapshotDate });
+}));
+
+// Simuliert den kompletten Morgen-Ablauf (09:00 Kursabfrage+News-Check, dann 09:15
+// Briefing) auf Knopfdruck - zum Testen, ohne auf die Uhrzeit zu warten.
+app.post('/api/run-morning-routine', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
+  const refreshResult = await runPriceRefreshJob();
+  const summary = await runBriefingJob();
+  res.json({
+    refreshed: refreshResult.updated,
+    failed: refreshResult.failed,
+    briefingSent: true,
+    total: summary.total,
+  });
 }));
 
 app.use((err, req, res, next) => {

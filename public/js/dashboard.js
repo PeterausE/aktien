@@ -38,6 +38,10 @@ async function loadPositions() {
     const tr = document.createElement('tr');
     tr.dataset.id = p.id;
     tr.classList.add('clickable-row');
+    if (p.last_refresh_error) {
+      tr.classList.add('row-warning');
+      tr.title = `Kursabruf fehlgeschlagen: ${p.last_refresh_error}`;
+    }
     const gainLossPercent = p.gain_loss_percent != null ? Number(p.gain_loss_percent) : null;
     const menge = Number(p.menge);
     const kauf = fmtCurrency(p.kaufpreis_per_einheit);
