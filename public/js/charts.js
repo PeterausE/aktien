@@ -3,7 +3,7 @@ let portfolioChart = null;
 function renderPortfolioChart(snapshots) {
   const ctx = document.getElementById('portfolio-chart');
   const labels = snapshots.map((s) => s.snapshot_date);
-  const values = snapshots.map((s) => s.portfolio_value);
+  const values = snapshots.map((s) => Number(s.portfolio_value));
 
   if (portfolioChart) {
     portfolioChart.data.labels = labels;

@@ -104,13 +104,17 @@ body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
+.positions-section {
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
 #positions-table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
   background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 #positions-table th,
@@ -147,6 +151,7 @@ body {
 
 .import-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
   margin-bottom: 0.75rem;
 }

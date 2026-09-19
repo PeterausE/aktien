@@ -1,7 +1,8 @@
 let activeTimeframe = 'all';
 
+// mysql2 liefert DECIMAL-Spalten als Strings (Praezisionserhalt) - hier konsequent zu Number wandeln.
 function fmtCurrency(value) {
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value ?? 0);
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number(value ?? 0));
 }
 
 async function loadFilters() {
@@ -33,16 +34,17 @@ async function loadPositions() {
 
   for (const p of positions) {
     const tr = document.createElement('tr');
-    const gainLossClass = (p.gain_loss_absolute ?? 0) >= 0 ? 'gain' : 'loss';
+    const gainLossPercent = p.gain_loss_percent != null ? Number(p.gain_loss_percent) : null;
+    const gainLossClass = gainLossPercent == null || gainLossPercent >= 0 ? 'gain' : 'loss';
     tr.innerHTML = `
       <td>${p.depot_name}</td>
       <td>${p.wertpapier_name}</td>
       <td>${p.isin}</td>
       <td>${p.assetklasse}</td>
-      <td>${p.menge}</td>
+      <td>${Number(p.menge)}</td>
       <td>${fmtCurrency(p.kaufpreis_per_einheit)}</td>
       <td>${p.current_total_value != null ? fmtCurrency(p.current_total_value) : '–'}</td>
-      <td class="${gainLossClass}">${p.gain_loss_percent != null ? p.gain_loss_percent.toFixed(2) + ' %' : '–'}</td>
+      <td class="${gainLossClass}">${gainLossPercent != null ? gainLossPercent.toFixed(2) + ' %' : '–'}</td>
     `;
     tbody.appendChild(tr);
   }
