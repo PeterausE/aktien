@@ -155,7 +155,7 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
 
     for (const row of positions) {
       const {
-        isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, ausschuettungsart,
+        isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, ausschuettungsart, kaufdatum,
         akt_kurs, akt_wert, gain_loss_percent, gain_loss_absolute,
       } = row;
 
@@ -178,15 +178,16 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
       if (existing.length > 0) {
         positionId = existing[0].id;
         await conn.query(
-          `UPDATE positions SET wertpapier_name = ?, assetklasse = ?, menge = ?, kaufpreis_per_einheit = ?, broker = ?, ausschuettungsart = ?
+          `UPDATE positions SET wertpapier_name = ?, assetklasse = ?, menge = ?, kaufpreis_per_einheit = ?, broker = ?, ausschuettungsart = ?,
+             kaufdatum = COALESCE(?, kaufdatum)
            WHERE id = ?`,
-          [wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, ausschuettungsart || null, positionId],
+          [wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, ausschuettungsart || null, kaufdatum || null, positionId],
         );
       } else {
         const [result] = await conn.query(
           `INSERT INTO positions (depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker, ausschuettungsart)
-           VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
-          [depot_name, isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, ausschuettungsart || null],
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum || null, kaufpreis_per_einheit, broker || null, ausschuettungsart || null],
         );
         positionId = result.insertId;
       }
