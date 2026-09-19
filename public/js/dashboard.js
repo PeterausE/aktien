@@ -29,8 +29,58 @@ async function loadFilters() {
   if (assetklassen.includes(previousAsset)) assetSelect.value = previousAsset;
 }
 
+let currentPositions = [];
+let sortField = null;
+let sortDirection = 'asc';
+
 async function loadPositions() {
-  const positions = await apiFetch(`positions?${currentFilterParams()}`);
+  currentPositions = await apiFetch(`positions?${currentFilterParams()}`);
+  renderPositionsRows(sortField ? sortPositions(currentPositions) : currentPositions);
+}
+
+function sortPositions(positions) {
+  const th = document.querySelector(`#positions-table th[data-sort="${sortField}"]`);
+  const type = th?.dataset.type ?? 'string';
+  const dir = sortDirection === 'asc' ? 1 : -1;
+
+  return [...positions].sort((a, b) => {
+    let va = a[sortField];
+    let vb = b[sortField];
+    const aEmpty = va == null || va === '';
+    const bEmpty = vb == null || vb === '';
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1; // leere Werte immer ans Ende, unabhaengig von der Richtung
+    if (bEmpty) return -1;
+
+    if (type === 'number') {
+      va = Number(va);
+      vb = Number(vb);
+      return (va - vb) * dir;
+    }
+    return String(va).localeCompare(String(vb), 'de') * dir;
+  });
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll('#positions-table th[data-sort]').forEach((th) => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === sortField) th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+function initSortableHeaders() {
+  document.querySelectorAll('#positions-table th[data-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const field = th.dataset.sort;
+      sortDirection = field === sortField && sortDirection === 'asc' ? 'desc' : 'asc';
+      sortField = field;
+      updateSortIndicators();
+      renderPositionsRows(sortPositions(currentPositions));
+    });
+  });
+}
+
+function renderPositionsRows(positions) {
   const tbody = document.querySelector('#positions-table tbody');
   tbody.innerHTML = '';
 
@@ -193,6 +243,7 @@ async function exportCsv() {
     if (row) window.location.href = `position.html?id=${row.dataset.id}`;
   });
   initTimeframeButtons();
+  initSortableHeaders();
 
   await loadFilters();
   await refreshDashboard();

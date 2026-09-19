@@ -115,20 +115,20 @@
       <table id="positions-table">
         <thead>
           <tr>
-            <th class="col-depot">Depot</th>
-            <th class="col-name">Wertpapier</th>
-            <th class="col-isin">ISIN</th>
-            <th class="col-klasse">Klasse</th>
-            <th class="col-typ" title="Thesaurierend / Ausschüttend">Typ</th>
-            <th class="col-anzahl">Anzahl</th>
-            <th class="col-preis">Kauf</th>
-            <th class="col-preis">Kurs</th>
-            <th class="col-wert">Wert</th>
-            <th class="col-delta">Δ Kauf</th>
-            <th class="col-period">1T</th>
-            <th class="col-period">1W</th>
-            <th class="col-period">1M</th>
-            <th class="col-period">1J</th>
+            <th class="col-depot" data-sort="depot_name" data-type="string">Depot</th>
+            <th class="col-name" data-sort="wertpapier_name" data-type="string">Wertpapier</th>
+            <th class="col-isin" data-sort="isin" data-type="string">ISIN</th>
+            <th class="col-klasse" data-sort="assetklasse" data-type="string">Klasse</th>
+            <th class="col-typ" data-sort="ausschuettungsart" data-type="string" title="Thesaurierend / Ausschüttend">Typ</th>
+            <th class="col-anzahl" data-sort="menge" data-type="number">Anzahl</th>
+            <th class="col-preis" data-sort="kaufpreis_per_einheit" data-type="number">Kauf</th>
+            <th class="col-preis" data-sort="current_price_per_unit" data-type="number">Kurs</th>
+            <th class="col-wert" data-sort="current_total_value" data-type="number">Wert</th>
+            <th class="col-delta" data-sort="gain_loss_percent" data-type="number">Δ Kauf</th>
+            <th class="col-period" data-sort="change_1d" data-type="number">1T</th>
+            <th class="col-period" data-sort="change_1w" data-type="number">1W</th>
+            <th class="col-period" data-sort="change_1m" data-type="number">1M</th>
+            <th class="col-period" data-sort="change_1y" data-type="number">1J</th>
           </tr>
         </thead>
         <tbody></tbody>

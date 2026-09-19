@@ -154,6 +154,33 @@ body {
   font-weight: 600;
 }
 
+#positions-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+#positions-table th[data-sort]:hover {
+  background: #eef2f7;
+}
+
+#positions-table th[data-sort]::after {
+  content: '';
+  display: inline-block;
+  width: 0.7em;
+  margin-left: 0.2rem;
+  color: #9aa5b1;
+}
+
+#positions-table th.sort-asc::after {
+  content: '▲';
+  color: #2563eb;
+}
+
+#positions-table th.sort-desc::after {
+  content: '▼';
+  color: #2563eb;
+}
+
 #positions-table tbody tr.clickable-row {
   cursor: pointer;
 }
