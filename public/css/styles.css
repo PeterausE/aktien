@@ -64,7 +64,28 @@ body {
 .topbar-right {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 1rem;
+}
+
+.toolbar-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.refresh-status {
+  font-size: 0.85rem;
+  color: #52606d;
+  max-width: 280px;
 }
 
 .dashboard {
@@ -195,11 +216,3 @@ body {
   background: #fef2f2;
 }
 
-#import-toggle-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid #2563eb;
-  border-radius: 4px;
-  background: #fff;
-  color: #2563eb;
-  cursor: pointer;
-}

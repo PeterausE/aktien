@@ -9,6 +9,7 @@ CREATE TABLE positions (
   kaufdatum DATE NULL, -- oft nicht aus Broker-Screenshots/-Exporten ersichtlich, daher optional
   kaufpreis_per_einheit DECIMAL(10,4) NOT NULL,
   broker VARCHAR(100),
+  yahoo_symbol VARCHAR(20) NULL, -- Cache der ISIN->Symbol-Aufloesung fuer den Kurs-Refresh
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,

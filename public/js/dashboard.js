@@ -71,6 +71,26 @@ function initTimeframeButtons() {
   });
 }
 
+async function refreshPrices() {
+  const btn = document.getElementById('refresh-prices-btn');
+  const statusEl = document.getElementById('refresh-status');
+
+  btn.disabled = true;
+  statusEl.textContent = 'Aktualisiere Kurse … (kann bis zu 1 Minute dauern)';
+
+  try {
+    const result = await apiFetch('refresh-prices', { method: 'POST' });
+    statusEl.textContent = result.failed.length === 0
+      ? `${result.updated} Kurse aktualisiert.`
+      : `${result.updated} aktualisiert, ${result.failed.length} fehlgeschlagen: ${result.failed.map((f) => f.wertpapier_name).join(', ')}`;
+    await refreshDashboard();
+  } catch (err) {
+    statusEl.textContent = `Fehler: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 (async function init() {
   const auth = getAuth();
   if (!auth?.token) {
@@ -80,8 +100,10 @@ function initTimeframeButtons() {
   document.getElementById('current-user').textContent = `${auth.username} (${auth.role === 'admin' ? 'Vollzugriff' : 'Nur Ansicht'})`;
   if (auth.role === 'admin') {
     document.getElementById('import-toggle-btn').hidden = false;
+    document.getElementById('refresh-prices-btn').hidden = false;
   }
 
+  document.getElementById('refresh-prices-btn').addEventListener('click', refreshPrices);
   document.getElementById('filter-depot').addEventListener('change', loadPositions);
   document.getElementById('filter-assetklasse').addEventListener('change', loadPositions);
   initTimeframeButtons();

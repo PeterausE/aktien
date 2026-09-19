@@ -3,7 +3,8 @@ const path = require('path');
 const express = require('express');
 const pool = require('./db');
 const { login, requireAuth, requireFullAccess } = require('./auth');
-const { asyncHandler } = require('./utils');
+const { asyncHandler, gainLoss } = require('./utils');
+const { fetchEurPrice, sleep } = require('./prices');
 
 const app = express();
 app.use(express.json());
@@ -206,6 +207,47 @@ app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req,
   } finally {
     conn.release();
   }
+}));
+
+app.post('/api/refresh-prices', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
+  const [positions] = await pool.query(
+    `SELECT id, isin, wertpapier_name, menge, kaufpreis_per_einheit, yahoo_symbol
+     FROM positions WHERE deleted_at IS NULL`,
+  );
+
+  const result = { updated: 0, failed: [] };
+
+  for (const p of positions) {
+    try {
+      const { symbol, priceEur } = await fetchEurPrice(p.isin, p.yahoo_symbol);
+
+      if (symbol !== p.yahoo_symbol) {
+        await pool.query('UPDATE positions SET yahoo_symbol = ? WHERE id = ?', [symbol, p.id]);
+      }
+
+      const totalValue = priceEur * Number(p.menge);
+      const { absolute, percent } = gainLoss(totalValue, Number(p.menge), Number(p.kaufpreis_per_einheit));
+
+      await pool.query(
+        `INSERT INTO daily_snapshots
+          (position_id, snapshot_date, current_price_per_unit, current_total_value, gain_loss_absolute, gain_loss_percent)
+         VALUES (?, CURDATE(), ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           current_price_per_unit = VALUES(current_price_per_unit),
+           current_total_value = VALUES(current_total_value),
+           gain_loss_absolute = VALUES(gain_loss_absolute),
+           gain_loss_percent = VALUES(gain_loss_percent)`,
+        [p.id, priceEur, totalValue, absolute, percent],
+      );
+      result.updated += 1;
+    } catch (err) {
+      result.failed.push({ isin: p.isin, wertpapier_name: p.wertpapier_name, error: err.message });
+    }
+    // kleine Pause zwischen Requests - Yahoo bietet keinen offiziellen API-Key/Rate-Limit-Vertrag.
+    await sleep(300);
+  }
+
+  res.json(result);
 }));
 
 app.use((err, req, res, next) => {
