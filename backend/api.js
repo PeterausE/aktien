@@ -1,6 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
+const helmet = require('helmet');
 const pool = require('./db');
 const { login, requireAuth, requireFullAccess } = require('./auth');
 const { asyncHandler, gainLoss } = require('./utils');
@@ -11,6 +12,25 @@ const { sendDailyBriefing } = require('./email');
 const { startScheduler, runPriceRefreshJob, runBriefingJob } = require('./scheduler');
 
 const app = express();
+
+// Security-Header (CSP, X-Content-Type-Options, entfernt X-Powered-By etc.). HSTS bewusst
+// OHNE includeSubDomains - die Domain gawborbeck.cloud wird von mehreren unabhaengigen
+// Projekten geteilt (ausstellung-app, waltraud, motivsucher, n8n-sdox), ein Fehler hier
+// wuerde nicht nur diese App betreffen.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  hsts: { maxAge: 15552000, includeSubDomains: false },
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
