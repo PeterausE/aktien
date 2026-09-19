@@ -127,3 +127,74 @@ body {
 
 .gain { color: #16a34a; }
 .loss { color: #dc2626; }
+
+.import-section {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 0 1.5rem 1.5rem;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.import-section .hint {
+  font-size: 0.85rem;
+  color: #52606d;
+  line-height: 1.5;
+}
+
+.import-meta {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.import-meta input {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+}
+
+#import-raw {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+}
+
+.import-actions {
+  margin: 0.75rem 0;
+}
+
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.import-preview-table th,
+.import-preview-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #eef0f2;
+  text-align: left;
+}
+
+.import-preview-table tr.row-error {
+  background: #fef2f2;
+}
+
+#import-toggle-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+}

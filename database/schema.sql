@@ -6,7 +6,7 @@ CREATE TABLE positions (
   wertpapier_name VARCHAR(255) NOT NULL,
   assetklasse ENUM('aktie', 'etf', 'anleihe') NOT NULL,
   menge DECIMAL(10,4) NOT NULL,
-  kaufdatum DATE NOT NULL,
+  kaufdatum DATE NULL, -- oft nicht aus Broker-Screenshots/-Exporten ersichtlich, daher optional
   kaufpreis_per_einheit DECIMAL(10,4) NOT NULL,
   broker VARCHAR(100),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

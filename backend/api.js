@@ -133,6 +133,81 @@ app.get('/api/snapshots/:timeframe', requireAuth, asyncHandler(async (req, res) 
   res.json(rows);
 }));
 
+app.post('/api/import', requireAuth, requireFullAccess, asyncHandler(async (req, res) => {
+  const { depot_name, broker, positions } = req.body || {};
+  if (!depot_name || !Array.isArray(positions) || positions.length === 0) {
+    return res.status(400).json({ error: 'depot_name und positions erforderlich' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    for (const row of positions) {
+      const {
+        isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit,
+        akt_kurs, akt_wert, gain_loss_percent, gain_loss_absolute,
+      } = row;
+
+      if (!isin || !wertpapier_name || !assetklasse || menge == null || kaufpreis_per_einheit == null) {
+        throw new Error(`Unvollständige Zeile: ${wertpapier_name || isin || '(unbekannt)'}`);
+      }
+      if (!['aktie', 'etf', 'anleihe'].includes(assetklasse)) {
+        throw new Error(`Ungültige Assetklasse bei ${wertpapier_name}`);
+      }
+
+      const [existing] = await conn.query(
+        'SELECT id FROM positions WHERE depot_name = ? AND isin = ? AND deleted_at IS NULL',
+        [depot_name, isin],
+      );
+
+      let positionId;
+      if (existing.length > 0) {
+        positionId = existing[0].id;
+        await conn.query(
+          `UPDATE positions SET wertpapier_name = ?, assetklasse = ?, menge = ?, kaufpreis_per_einheit = ?, broker = ?
+           WHERE id = ?`,
+          [wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null, positionId],
+        );
+      } else {
+        const [result] = await conn.query(
+          `INSERT INTO positions (depot_name, isin, wertpapier_name, assetklasse, menge, kaufdatum, kaufpreis_per_einheit, broker)
+           VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+          [depot_name, isin, wertpapier_name, assetklasse, menge, kaufpreis_per_einheit, broker || null],
+        );
+        positionId = result.insertId;
+      }
+
+      if (akt_kurs != null && akt_wert != null) {
+        await conn.query(
+          `INSERT INTO daily_snapshots
+            (position_id, snapshot_date, current_price_per_unit, current_total_value, gain_loss_absolute, gain_loss_percent)
+           VALUES (?, CURDATE(), ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             current_price_per_unit = VALUES(current_price_per_unit),
+             current_total_value = VALUES(current_total_value),
+             gain_loss_absolute = VALUES(gain_loss_absolute),
+             gain_loss_percent = VALUES(gain_loss_percent)`,
+          [positionId, akt_kurs, akt_wert, gain_loss_absolute ?? null, gain_loss_percent ?? null],
+        );
+      }
+    }
+
+    await conn.query(
+      'INSERT INTO import_history (import_source, positions_imported_count) VALUES (?, ?)',
+      [`${broker || 'manuell'}: ${depot_name}`, positions.length],
+    );
+
+    await conn.commit();
+    res.status(201).json({ imported: positions.length });
+  } catch (err) {
+    await conn.rollback();
+    res.status(400).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+}));
+
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Interner Serverfehler' });

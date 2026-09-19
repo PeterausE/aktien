@@ -8,9 +8,16 @@ async function loadFilters() {
   const { depots, assetklassen } = await apiFetch('filters');
   const depotSelect = document.getElementById('filter-depot');
   const assetSelect = document.getElementById('filter-assetklasse');
+  const previousDepot = depotSelect.value;
+  const previousAsset = assetSelect.value;
 
+  depotSelect.length = 1;
+  assetSelect.length = 1;
   depots.forEach((d) => depotSelect.add(new Option(d, d)));
   assetklassen.forEach((a) => assetSelect.add(new Option(a, a)));
+
+  if (depots.includes(previousDepot)) depotSelect.value = previousDepot;
+  if (assetklassen.includes(previousAsset)) assetSelect.value = previousAsset;
 }
 
 async function loadPositions() {
@@ -69,6 +76,9 @@ function initTimeframeButtons() {
     return;
   }
   document.getElementById('current-user').textContent = `${auth.username} (${auth.role === 'admin' ? 'Vollzugriff' : 'Nur Ansicht'})`;
+  if (auth.role === 'admin') {
+    document.getElementById('import-toggle-btn').hidden = false;
+  }
 
   document.getElementById('filter-depot').addEventListener('change', loadPositions);
   document.getElementById('filter-assetklasse').addEventListener('change', loadPositions);

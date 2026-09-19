@@ -11,11 +11,37 @@
     <h1>Aktienaufstellung</h1>
     <div class="topbar-right">
       <span id="current-user"></span>
+      <button id="import-toggle-btn" hidden>Import</button>
       <button id="logout-btn">Abmelden</button>
     </div>
   </header>
 
   <main class="dashboard">
+    <section id="import-section" class="import-section" hidden>
+      <h2>Positionen importieren</h2>
+      <p class="hint">
+        Eine Zeile pro Position, Felder getrennt mit <code>|</code>:<br />
+        <code>ISIN|Name|Assetklasse|Menge|Kaufkurs|Akt.Kurs|Gesamt %|Gesamt €</code><br />
+        Assetklasse wird beim Einlesen automatisch geschätzt (aktie/etf/anleihe) und kann pro Zeile korrigiert werden.
+        Dezimalzahlen mit Punkt oder Komma, Tausendertrennzeichen werden ignoriert.
+      </p>
+      <div class="import-meta">
+        <label>
+          Depotname
+          <input type="text" id="import-depot" placeholder="z. B. Zero Peter" />
+        </label>
+        <label>
+          Broker
+          <input type="text" id="import-broker" placeholder="z. B. Zero" />
+        </label>
+      </div>
+      <textarea id="import-raw" rows="8" placeholder="IE00B4L5YC18|iShares MSCI EM UCITS ETF USD (Acc)|etf|304|35,457|55,88|57,60|6208,46"></textarea>
+      <div class="import-actions">
+        <button id="import-parse-btn">Zeilen einlesen</button>
+      </div>
+      <div id="import-preview"></div>
+    </section>
+
     <section class="filters">
       <label>
         Depot
@@ -64,6 +90,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="js/auth.js"></script>
   <script src="js/charts.js"></script>
+  <script src="js/import.js"></script>
   <script src="js/dashboard.js"></script>
 </body>
 </html>

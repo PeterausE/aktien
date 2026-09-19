@@ -7,6 +7,9 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
+  // DATE/DATETIME als Strings statt JS-Date-Objekte - vermeidet eine
+  // Zeitzonen-Verschiebung beim Serialisieren nach JSON (bekannter mysql2-Stolperstein).
+  dateStrings: true,
 });
 
 module.exports = pool;
