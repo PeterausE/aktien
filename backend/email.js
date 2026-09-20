@@ -60,11 +60,39 @@ async function getPortfolioSummary(pool) {
      ORDER BY total DESC`,
   );
 
+  // Depot-Werte von "gestern" (letzter Snapshot vor heute) fuer die Vortag-Delta-Spalte je Depot.
+  const [byDepotYesterday] = await pool.query(
+    `SELECT p.depot_name, SUM(s.current_total_value) AS total
+     FROM positions p
+     JOIN daily_snapshots s ON s.position_id = p.id
+      AND s.snapshot_date = (
+            SELECT MAX(snapshot_date) FROM daily_snapshots
+            WHERE position_id = p.id AND snapshot_date <= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+          )
+     WHERE p.deleted_at IS NULL
+     GROUP BY p.depot_name`,
+  );
+  const yesterdayByDepot = new Map(byDepotYesterday.map((d) => [d.depot_name, d.total]));
+  const byDepotWithDelta = byDepot.map((d) => ({
+    ...d,
+    change_1d: percentChange(d.total, yesterdayByDepot.get(d.depot_name)),
+  }));
+
+  // Letzte 7 Tage Gesamtwert fuer die Wochengrafik im Report.
+  const [weeklySeries] = await pool.query(
+    `SELECT snapshot_date, SUM(current_total_value) AS total
+     FROM daily_snapshots
+     WHERE snapshot_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+     GROUP BY snapshot_date
+     ORDER BY snapshot_date`,
+  );
+
   return {
     snapshotDate: latest?.snapshot_date ?? null,
     total: latest?.total ?? 0,
     changes,
-    byDepot,
+    byDepot: byDepotWithDelta,
+    weeklySeries,
   };
 }
 
@@ -80,6 +108,54 @@ function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Einfache, abhaengigkeitsfreie Inline-SVG-Liniengrafik fuer den Wochenverlauf. Bewusst
+// ohne Achsenbeschriftung in der SVG selbst (Text-Rendering in SVG ist in manchen
+// Email-Clients unzuverlaessig) - Start-/Enddatum stehen stattdessen als normaler HTML-Text
+// darunter.
+function buildWeeklyChartSvg(series) {
+  if (series.length < 2) return null;
+
+  const width = 480;
+  const height = 120;
+  const padding = 12;
+  const values = series.map((s) => Number(s.total));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = series.map((s, i) => {
+    const x = padding + (i / (series.length - 1)) * (width - padding * 2);
+    const y = height - padding - ((Number(s.total) - min) / range) * (height - padding * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const linePoints = points.join(' ');
+  const areaPoints = `${padding},${height - padding} ${linePoints} ${width - padding},${height - padding}`;
+
+  return `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="display:block;max-width:100%;">
+      <polygon points="${areaPoints}" fill="rgba(37,99,235,0.12)" />
+      <polyline points="${linePoints}" fill="none" stroke="#2563eb" stroke-width="2" />
+    </svg>
+  `;
+}
+
+function buildWeeklyChartSection(series) {
+  const svg = buildWeeklyChartSvg(series);
+  if (!svg) return '';
+
+  const first = series[0];
+  const last = series[series.length - 1];
+  return `
+    <h3 style="margin:24px 0 8px;">Wochenverlauf</h3>
+    ${svg}
+    <div style="display:flex;justify-content:space-between;color:#52606d;font-size:0.78rem;margin-top:2px;">
+      <span>${first.snapshot_date}</span>
+      <span>${last.snapshot_date}</span>
+    </div>
+  `;
+}
+
 function buildBriefingHtml(summary, newsHighlights = []) {
   const changeRows = LOOKBACKS.map(({ key, label }) => `
     <tr><td style="padding:4px 12px 4px 0;color:#52606d;">${label}</td>
@@ -87,8 +163,11 @@ function buildBriefingHtml(summary, newsHighlights = []) {
   `).join('');
 
   const depotRows = summary.byDepot.map((d) => `
-    <tr><td style="padding:4px 12px 4px 0;color:#52606d;">${d.depot_name}</td>
-        <td style="padding:4px 0;text-align:right;">${fmtEur(d.total)}</td></tr>
+    <tr>
+      <td style="padding:4px 12px 4px 0;color:#52606d;">${escapeHtml(d.depot_name)}</td>
+      <td style="padding:4px 12px 4px 0;text-align:right;">${fmtEur(d.total)}</td>
+      <td style="padding:4px 0;text-align:right;color:${d.change_1d == null ? '#52606d' : d.change_1d >= 0 ? '#16a34a' : '#dc2626'};">${fmtPercent(d.change_1d)}</td>
+    </tr>
   `).join('');
 
   const newsSection = newsHighlights.length === 0 ? '' : `
@@ -108,9 +187,22 @@ function buildBriefingHtml(summary, newsHighlights = []) {
       <h2 style="margin-bottom:0;">Aktienaufstellung – Tagesbriefing</h2>
       <p style="color:#52606d;margin-top:4px;">Stand: ${summary.snapshotDate ?? '–'}</p>
       <p style="font-size:1.8rem;font-weight:700;margin:16px 0 4px;">${fmtEur(summary.total)}</p>
+      <p style="margin:0 0 12px;color:${summary.changes.change_1d == null ? '#52606d' : summary.changes.change_1d >= 0 ? '#16a34a' : '#dc2626'};font-weight:600;">
+        ${fmtPercent(summary.changes.change_1d)} zum Vortag
+      </p>
       <table style="border-collapse:collapse;margin-bottom:20px;">${changeRows}</table>
       <h3 style="margin-bottom:8px;">Nach Depot</h3>
-      <table style="border-collapse:collapse;width:100%;">${depotRows}</table>
+      <table style="border-collapse:collapse;width:100%;">
+        <thead>
+          <tr>
+            <th style="text-align:left;color:#52606d;font-size:0.78rem;font-weight:600;padding-bottom:4px;">Depot</th>
+            <th style="text-align:right;color:#52606d;font-size:0.78rem;font-weight:600;padding-bottom:4px;">Wert</th>
+            <th style="text-align:right;color:#52606d;font-size:0.78rem;font-weight:600;padding-bottom:4px;">Δ Vortag</th>
+          </tr>
+        </thead>
+        <tbody>${depotRows}</tbody>
+      </table>
+      ${buildWeeklyChartSection(summary.weeklySeries)}
       ${newsSection}
     </div>
   `;
